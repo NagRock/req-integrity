@@ -1,0 +1,29 @@
+modules:
+  jira:globalPage:
+    - key: req-integrity-global-page
+      resource: main
+      resolver:
+        function: resolver
+      title: req-integrity
+  jira:issueContext:
+    - key: req-integrity-issue-context
+      title: Analyse
+      label: Analyse
+      resource: issue-context-ui
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: main
+    path: static/req-integrity/dist
+  - key: issue-context-ui
+    path: static/req-integrity-issue-side-panel/dist
+permissions:
+  scopes:
+    - read:jira-work
+app:
+  runtime:
+    name: nodejs22.x
+    memoryMB: 256
+    architecture: arm64
+  id: ari:cloud:ecosystem::app/f5ce09bd-0681-467c-ba46-d41f13c342db
