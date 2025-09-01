@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react'
-import { view, invoke } from '@forge/bridge';
 import './App.css'
+import { useIssueData } from './hooks/useIssueData';
 
 interface ChildIssueDetail {
   key: string;
@@ -16,53 +15,23 @@ interface IssueRelationships {
 }
 
 function App() {
-  const [issueId, setIssueId] = useState<string | null>(null);
-  const [issueKey, setIssueKey] = useState<string | null>(null);
-  const [relationships, setRelationships] = useState<IssueRelationships>({
+  const { data, isLoading, error } = useIssueData();
+  const issueId = data?.issueId;
+  const issueKey = data?.issueKey;
+  const relationships = data?.relationships || {
     children: [],
     childrenDetails: [],
     summary: '',
     description: ''
-  });
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Get issueId using Forge router
-    const getIssueIdFromUrl = async () => {
-      try {
-        const history = await view.createHistory();
-        const params = new URLSearchParams(history.location.search);
-        const id = params.get('issueId');
-        setIssueId(id);
-
-        if (id) {
-          // Get issue key from the ID
-          const issueData = await invoke('getIssueKey', { issueId: id });
-          setIssueKey(issueData.key);
-
-          // Get parent and child relationships
-          const relationshipsData = await invoke('getIssueRelationships', { issueKey: issueData.key });
-          setRelationships(relationshipsData);
-        }
-      } catch (error) {
-        console.error('Error:', error);
-        setError('Failed to load issue data. Please check your connection and try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    getIssueIdFromUrl();
-  }, []);
+  };
 
   return (
     <div className="app-container">
       <h1>Requirement Integrity Analysis</h1>
-      {loading ? (
+      {isLoading ? (
         <p className="loading">Loading...</p>
       ) : error ? (
-        <p className="error-message">{error}</p>
+        <p className="error-message">{(error as Error).message || 'Failed to load issue data. Please check your connection and try again.'}</p>
       ) : issueId && issueKey ? (
         <div className="issue-details">
           <h2>Analyzing Issue: {issueKey}</h2>
@@ -100,14 +69,12 @@ function App() {
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <p className="no-issues">No child issues found</p>
-              )}
+              ) : null}
             </div>
           </div>
         </div>
       ) : (
-        <p className="error-message">No issue ID found in URL parameters.</p>
+        <p className="error-message">No issue ID found in the URL.</p>
       )}
     </div>
   );
