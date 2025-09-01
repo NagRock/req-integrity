@@ -37,6 +37,42 @@
   padding: 2em;
 }
 
+.app-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+h1 {
+  font-size: 2.5rem;
+  margin-bottom: 2rem;
+  color: #333;
+}
+
+h2 {
+  font-size: 1.8rem;
+  color: #444;
+}
+
+.issue-details {
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.error-message {
+  color: #e53935;
+  font-size: 1.2rem;
+  background-color: #ffebee;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-top: 1.5rem;
+}
+
+/* Keep some of the existing styles for compatibility */
 .read-the-docs {
   color: #888;
 }
