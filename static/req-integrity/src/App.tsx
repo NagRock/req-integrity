@@ -2,15 +2,28 @@ import { useState, useEffect } from 'react'
 import { view, invoke } from '@forge/bridge';
 import './App.css'
 
+interface ChildIssueDetail {
+  key: string;
+  summary: string;
+}
+
 interface IssueRelationships {
   parent?: string;
   children: string[];
+  childrenDetails: ChildIssueDetail[];
+  summary: string;
+  description: string;
 }
 
 function App() {
   const [issueId, setIssueId] = useState<string | null>(null);
   const [issueKey, setIssueKey] = useState<string | null>(null);
-  const [relationships, setRelationships] = useState<IssueRelationships>({ children: [] });
+  const [relationships, setRelationships] = useState<IssueRelationships>({
+    children: [],
+    childrenDetails: [],
+    summary: '',
+    description: ''
+  });
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,6 +67,20 @@ function App() {
         <div className="issue-details">
           <h2>Analyzing Issue: {issueKey}</h2>
 
+          <div className="issue-summary-container">
+            <h3>Summary</h3>
+            <p className="issue-summary">{relationships.summary}</p>
+
+            {relationships.description && (
+              <div className="issue-description">
+                <h4>Description</h4>
+                <div className="description-text">
+                  {relationships.description}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="relationships">
             {relationships.parent && (
               <div className="parent-issue">
@@ -63,11 +90,14 @@ function App() {
             )}
 
             <div className="child-issues">
-              <h3>Child Issues: {relationships.children.length > 0 ? '' : 'None'}</h3>
-              {relationships.children.length > 0 ? (
+              <h3>Child Issues: {relationships.childrenDetails.length > 0 ? '' : 'None'}</h3>
+              {relationships.childrenDetails.length > 0 ? (
                 <ul className="issues-list">
-                  {relationships.children.map((childKey) => (
-                    <li key={childKey} className="issue-key">{childKey}</li>
+                  {relationships.childrenDetails.map((child) => (
+                    <li key={child.key} className="child-issue-item">
+                      <div className="issue-key">{child.key}</div>
+                      {child.summary && <div className="child-issue-summary">{child.summary}</div>}
+                    </li>
                   ))}
                 </ul>
               ) : (
