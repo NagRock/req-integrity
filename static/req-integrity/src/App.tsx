@@ -3,8 +3,7 @@ import './App.css'
 import { useIssueData } from './hooks/useIssueData';
 import { analyzeIssueIntegrity, MissingIssue } from './services/openai';
 import { extractTextFromADF } from './utils/textUtils';
-import { CreateIssueModal } from '@forge/jira-bridge';
-import { view } from '@forge/bridge';
+import { CreateIssueModal, ViewIssueModal } from '@forge/jira-bridge';
 
 // Child issue component with expandable description
 const ChildIssueItem = ({ issue }: { issue: { key: string; summary: string; issuetype?: string; description?: any } }) => {
@@ -66,7 +65,17 @@ const MissingIssuesSuggestions = ({
           context: {
               // Set initial values
               summary: issue.proposedSummary,
-              // description: `${issue.rationale}`,
+              description: { type: 'doc', version: 1, content: [
+                  {
+                    type: 'paragraph',
+                    content: [
+                      {
+                        type: 'text',
+                        text: issue.rationale
+                      }
+                    ]
+                  }
+              ]},
               // Set parent issue if applicable
               ...(parentIssueKey && {parentIssueKey}),
           },
@@ -168,7 +177,14 @@ function App() {
 
   // Function to open issue in Jira
   const openIssue = (issueKey: string) => {
-    view.navigate(`/browse/${issueKey}`);
+    // view.navigate(`/browse/${issueKey}`);
+    // Using ViewIssueModal instead of view.navigate
+    const modal = new ViewIssueModal({
+      context: { issueKey },
+      onClose: () => {}
+    });
+
+    modal.open();
   };
 
   return (
