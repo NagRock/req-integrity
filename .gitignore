@@ -8,7 +8,7 @@ node_modules/
 dist/
 
 #api token
-./src/token.js
+src/token.js
 
 # Compiled Java class files
 *.class
