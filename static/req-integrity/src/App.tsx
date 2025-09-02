@@ -3,6 +3,8 @@ import './App.css'
 import { useIssueData } from './hooks/useIssueData';
 import { analyzeIssueIntegrity, MissingIssue } from './services/openai';
 import { extractTextFromADF } from './utils/textUtils';
+import { CreateIssueModal } from '@forge/jira-bridge';
+import { view } from '@forge/bridge';
 
 // Child issue component with expandable description
 const ChildIssueItem = ({ issue }: { issue: { key: string; summary: string; issuetype?: string; description?: any } }) => {
@@ -43,11 +45,52 @@ const ChildIssueItem = ({ issue }: { issue: { key: string; summary: string; issu
   );
 };
 
-// Missing Issues Suggestions component
-const MissingIssuesSuggestions = ({ missingIssues }: { missingIssues: MissingIssue[] }) => {
+// Missing Issues Suggestions component with Create Story button
+const MissingIssuesSuggestions = ({
+  missingIssues,
+  parentIssueKey,
+  onIssueCreated
+}: {
+  missingIssues: MissingIssue[];
+  parentIssueKey: string;
+  onIssueCreated: (issueKey: string) => void;
+}) => {
   if (!missingIssues || missingIssues.length === 0) {
     return null;
   }
+
+  const handleCreateIssue = async (issue: MissingIssue) => {
+    try {
+      // Use the Forge's CreateIssueModal
+      const modal = new CreateIssueModal({
+          context: {
+              // Set initial values
+              summary: issue.proposedSummary,
+              // description: `${issue.rationale}`,
+              // Set parent issue if applicable
+              ...(parentIssueKey && {parentIssueKey}),
+          }
+      });
+
+      // Show the modal and wait for user to create the issue
+      const result = await modal.open();
+
+      // If a new issue was created, notify the parent component
+      if (result && result.issueKey) {
+        onIssueCreated(result.issueKey);
+      }
+    } catch (error) {
+      console.error('Error creating issue:', error);
+    }
+  };
+
+  // Icon for Create Story button
+  const PlusIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"></line>
+      <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+  );
 
   return (
     <div className="missing-issues-container">
@@ -57,6 +100,12 @@ const MissingIssuesSuggestions = ({ missingIssues }: { missingIssues: MissingIss
           <div key={index} className="missing-issue-item">
             <div className="missing-issue-summary">{issue.proposedSummary}</div>
             <div className="missing-issue-rationale">{issue.rationale}</div>
+            <button
+              className="create-story-button"
+              onClick={() => handleCreateIssue(issue)}
+            >
+              <PlusIcon /> Create Issue
+            </button>
           </div>
         ))}
       </div>
@@ -70,6 +119,7 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [missingIssues, setMissingIssues] = useState<MissingIssue[]>([]);
+  const [createdIssues, setCreatedIssues] = useState<string[]>([]);
 
   const issueId = data?.issueId;
   const issueKey = data?.issueKey;
@@ -88,6 +138,7 @@ function App() {
     setAnalysisError(null);
     setAnalysisResult('');
     setMissingIssues([]);
+    setCreatedIssues([]);
 
     try {
       const result = await analyzeIssueIntegrity(
@@ -109,6 +160,15 @@ function App() {
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const handleIssueCreated = (issueKey: string) => {
+    setCreatedIssues(prev => [...prev, issueKey]);
+  };
+
+  // Function to open issue in Jira
+  const openIssue = (issueKey: string) => {
+    view.navigate(`/browse/${issueKey}`);
   };
 
   return (
@@ -190,8 +250,27 @@ function App() {
                   ))}
                 </div>
 
-                {/* Display missing issues suggestions */}
-                {missingIssues.length > 0 && <MissingIssuesSuggestions missingIssues={missingIssues} />}
+                {/* Display success notifications for created issues */}
+                {createdIssues.length > 0 && (
+                  <div className="success-notification">
+                    <span>Created issue(s):</span>
+                    {createdIssues.map((key, i) => (
+                      <span key={i}>
+                        {i > 0 && ', '}
+                        <a href="#" onClick={() => openIssue(key)}>{key}</a>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Display missing issues suggestions with create buttons */}
+                {missingIssues.length > 0 && (
+                  <MissingIssuesSuggestions
+                    missingIssues={missingIssues}
+                    parentIssueKey={issueKey}
+                    onIssueCreated={handleIssueCreated}
+                  />
+                )}
               </div>
             )}
           </div>
