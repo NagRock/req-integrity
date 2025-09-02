@@ -56,7 +56,7 @@ resolver.define('getIssueRelationships', async ({ payload }) => {
         // Use standard JQL to find direct child issues (works in all Jira versions)
         try {
             const parentChildrenResponse = await api.asUser().requestJira(
-                route`/rest/api/3/search?jql=parent=${issueKey}&fields=summary,issuetype`
+                route`/rest/api/3/search?jql=parent=${issueKey}&fields=summary,issuetype,description`
             );
 
             const parentChildrenData = await parentChildrenResponse.json();
@@ -69,7 +69,8 @@ resolver.define('getIssueRelationships', async ({ payload }) => {
                     relationships.childrenDetails.push({
                         key: issue.key,
                         summary: issue.fields && issue.fields.summary ? issue.fields.summary : '',
-                        issuetype: issue.fields && issue.fields.issuetype ? issue.fields.issuetype.name : ''
+                        issuetype: issue.fields && issue.fields.issuetype ? issue.fields.issuetype.name : '',
+                        description: issue.fields && issue.fields.description ? issue.fields.description : ''
                     });
                 }
             }
@@ -115,7 +116,7 @@ resolver.define('getIssueRelationships', async ({ payload }) => {
             try {
                 // Try standard Epic link
                 const epicChildrenResponse = await api.asUser().requestJira(
-                    route`/rest/api/3/search?jql=epic=${issueKey}&fields=summary,issuetype`
+                    route`/rest/api/3/search?jql=epic=${issueKey}&fields=summary,issuetype,description`
                 );
 
                 const epicChildrenData = await epicChildrenResponse.json();
@@ -128,7 +129,8 @@ resolver.define('getIssueRelationships', async ({ payload }) => {
                             relationships.childrenDetails.push({
                                 key: issue.key,
                                 summary: issue.fields && issue.fields.summary ? issue.fields.summary : '',
-                                issuetype: issue.fields && issue.fields.issuetype ? issue.fields.issuetype.name : ''
+                                issuetype: issue.fields && issue.fields.issuetype ? issue.fields.issuetype.name : '',
+                                description: issue.fields && issue.fields.description ? issue.fields.description : ''
                             });
                         }
                     }
@@ -217,14 +219,15 @@ resolver.define('getIssueRelationships', async ({ payload }) => {
                 for (const childKey of childrenNeedingDetails) {
                     try {
                         const childResponse = await api.asUser().requestJira(
-                            route`/rest/api/3/issue/${childKey}?fields=summary,issuetype`
+                            route`/rest/api/3/issue/${childKey}?fields=summary,issuetype,description`
                         );
                         const childData = await childResponse.json();
 
                         relationships.childrenDetails.push({
                             key: childKey,
                             summary: childData.fields && childData.fields.summary ? childData.fields.summary : '',
-                            issuetype: childData.fields && childData.fields.issuetype ? childData.fields.issuetype.name : ''
+                            issuetype: childData.fields && childData.fields.issuetype ? childData.fields.issuetype.name : '',
+                            description: childData.fields && childData.fields.description ? childData.fields.description : ''
                         });
                     } catch (childError) {
                         console.error(`Error fetching details for issue ${childKey}:`, childError);

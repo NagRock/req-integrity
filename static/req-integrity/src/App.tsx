@@ -4,6 +4,45 @@ import { useIssueData } from './hooks/useIssueData';
 import { analyzeIssueIntegrity } from './services/openai';
 import { extractTextFromADF } from './utils/textUtils';
 
+// Child issue component with expandable description
+const ChildIssueItem = ({ issue }: { issue: { key: string; summary: string; issuetype?: string; description?: any } }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  // Extract plain text from description if available
+  const descriptionText = issue.description ? extractTextFromADF(issue.description) : '';
+
+  return (
+    <li key={issue.key} className="child-issue-item">
+      <div className="child-issue-header" onClick={() => setExpanded(!expanded)}>
+        <div>
+          <div className="issue-key">{issue.key}</div>
+          {issue.summary && <div className="child-issue-summary">{issue.summary}</div>}
+        </div>
+        <button
+          className={`expand-button ${expanded ? 'expanded' : ''}`}
+          onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+          aria-label={expanded ? "Collapse issue details" : "Expand issue details"}
+        >
+          ▼
+        </button>
+      </div>
+      <div className={`child-issue-details ${expanded ? 'expanded' : ''}`}>
+        {issue.issuetype && <div><strong>Type:</strong> {issue.issuetype}</div>}
+        {descriptionText ? (
+          <div className="child-description">
+            <strong>Description:</strong>
+            <div className="description-text">{descriptionText}</div>
+          </div>
+        ) : (
+          <div className="description-placeholder">
+            No description available
+          </div>
+        )}
+      </div>
+    </li>
+  );
+};
+
 function App() {
   const { data, isLoading, error } = useIssueData();
   const [analysisResult, setAnalysisResult] = useState<string>('');
@@ -57,40 +96,47 @@ function App() {
         <div className="issue-details">
           <h2>Analyzing Issue: {issueKey}</h2>
 
-          <div className="issue-summary-container">
-            <h3>Summary</h3>
-            <p className="issue-summary">{relationships.summary}</p>
+          {/* Parent issue reference */}
+          {relationships.parent && (
+            <div className="parent-issue">
+              <h3>Parent Issue:</h3>
+              <div className="issue-key">{relationships.parent}</div>
+            </div>
+          )}
 
-            {descriptionText && (
-              <div className="issue-description">
-                <h4>Description</h4>
-                <div className="description-text">
-                  {descriptionText}
-                </div>
+          {/* Horizontal layout container */}
+          <div className="issue-content-container">
+            {/* Main task container (left side) */}
+            <div className="main-issue-container">
+              <div className="issue-summary-container">
+                <h3>Main Task</h3>
+                <p className="issue-summary">{relationships.summary}</p>
+
+                {descriptionText && (
+                  <div className="issue-description">
+                    <h4>Description</h4>
+                    <div className="description-text">
+                      {descriptionText}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
 
-          <div className="relationships">
-            {relationships.parent && (
-              <div className="parent-issue">
-                <h3>Parent Issue:</h3>
-                <div className="issue-key">{relationships.parent}</div>
+            {/* Child issues container (right side) */}
+            <div className="child-issues-container">
+              <div className="child-issues">
+                <h3>Child Issues</h3>
+                {relationships.childrenDetails.length > 0 ? (
+                  <ul className="issues-list">
+                    {relationships.childrenDetails.map((child) => (
+                      <ChildIssueItem key={child.key} issue={child} />
+                    ))}
+                  </ul>
+                ) : (
+                  <p>None</p>
+                )}
               </div>
-            )}
-
-            <div className="child-issues">
-              <h3>Child Issues: {relationships.childrenDetails.length > 0 ? '' : 'None'}</h3>
-              {relationships.childrenDetails.length > 0 ? (
-                <ul className="issues-list">
-                  {relationships.childrenDetails.map((child) => (
-                    <li key={child.key} className="child-issue-item">
-                      <div className="issue-key">{child.key}</div>
-                      {child.summary && <div className="child-issue-summary">{child.summary}</div>}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
             </div>
           </div>
 
