@@ -293,6 +293,7 @@ If the main task has clear information:
   "missingIssues": [
     {
       "proposedSummary": "Implement feature X mentioned in main task",
+      "shortDescription": "A concise 1-2 sentence description of what this issue entails",
       "rationale": "Brief explanation of why this issue is needed based on main task"
     },
     ...

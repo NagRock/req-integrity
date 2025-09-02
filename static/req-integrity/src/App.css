@@ -39,7 +39,7 @@
 
 .app-container {
   max-width: 1200px;
-  margin: 0 auto;
+  margin: 0;
   padding: 2rem;
   text-align: center;
 }
@@ -304,3 +304,28 @@ h4 {
   }
 }
 
+/* Create Issue button styling */
+.create-story-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: #0052cc;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-top: 10px;
+}
+
+.create-story-button:hover {
+  background-color: #0747a6;
+}
+
+/* Control the size of the Plus icon */
+.create-story-button svg {
+  width: 16px;
+  height: 16px;
+}

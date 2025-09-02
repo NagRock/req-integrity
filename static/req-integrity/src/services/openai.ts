@@ -3,6 +3,7 @@ import { invoke } from '@forge/bridge';
 export interface MissingIssue {
   proposedSummary: string;
   rationale: string;
+  shortDescription: string;
 }
 
 interface AnalysisResponse {

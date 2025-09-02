@@ -71,7 +71,7 @@ const MissingIssuesSuggestions = ({
                     content: [
                       {
                         type: 'text',
-                        text: issue.rationale
+                        text: issue.shortDescription
                       }
                     ]
                   }
