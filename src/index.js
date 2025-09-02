@@ -35,7 +35,7 @@ resolver.define('getIssueRelationships', async ({ payload }) => {
     try {
         // Get issue details including parent, summary and description
         const issueResponse = await api.asUser().requestJira(
-            route`/rest/api/3/issue/${issueKey}?fields=parent,summary,description`
+            route`/rest/api/3/issue/${issueKey}?fields=parent,summary,description,issuetype`
         );
 
         const issueData = await issueResponse.json();
@@ -50,70 +50,195 @@ resolver.define('getIssueRelationships', async ({ payload }) => {
             relationships.description = issueData.fields.description || '';
         }
 
-        // Then get all children using the issueLink field with "is parent of" type
-        const linksResponse = await api.asUser().requestJira(
-            route`/rest/api/3/issue/${issueKey}?fields=issuelinks`
-        );
-
-        const linksData = await linksResponse.json();
-
         // Collection to track child keys we've already processed
         const childKeys = new Set();
 
-        if (linksData.fields && linksData.fields.issuelinks) {
-            // Process each issue link
-            for (const link of linksData.fields.issuelinks) {
-                // Check for outward links that represent child relationships
-                if (link.outwardIssue && link.type && link.type.name === 'Parent/Child') {
-                    childKeys.add(link.outwardIssue.key);
-                    relationships.children.push(link.outwardIssue.key);
-                }
-                // Some Jira instances use different link types, so also check for subtask relationship
-                else if (link.outwardIssue && link.type && link.type.name.toLowerCase().includes('subtask')) {
-                    childKeys.add(link.outwardIssue.key);
-                    relationships.children.push(link.outwardIssue.key);
-                }
-            }
-        }
+        // Use standard JQL to find direct child issues (works in all Jira versions)
+        try {
+            const parentChildrenResponse = await api.asUser().requestJira(
+                route`/rest/api/3/search?jql=parent=${issueKey}&fields=summary,issuetype`
+            );
 
-        // Also check for subtasks which might be represented differently
-        const subtasksResponse = await api.asUser().requestJira(
-            route`/rest/api/3/issue/${issueKey}?fields=subtasks`
-        );
+            const parentChildrenData = await parentChildrenResponse.json();
 
-        const subtasksData = await subtasksResponse.json();
-        if (subtasksData.fields && subtasksData.fields.subtasks) {
-            for (const subtask of subtasksData.fields.subtasks) {
-                if (!childKeys.has(subtask.key)) {
-                    childKeys.add(subtask.key);
-                    relationships.children.push(subtask.key);
+            if (parentChildrenData.issues && Array.isArray(parentChildrenData.issues)) {
+                console.log(`Found ${parentChildrenData.issues.length} direct parent-child linked issues for ${issueKey}`);
+                for (const issue of parentChildrenData.issues) {
+                    childKeys.add(issue.key);
+                    relationships.children.push(issue.key);
+                    relationships.childrenDetails.push({
+                        key: issue.key,
+                        summary: issue.fields && issue.fields.summary ? issue.fields.summary : '',
+                        issuetype: issue.fields && issue.fields.issuetype ? issue.fields.issuetype.name : ''
+                    });
                 }
             }
+        } catch (error) {
+            console.error(`Error fetching direct parent-child issues for ${issueKey}:`, error);
         }
 
-        // Fetch details for each child issue
-        if (relationships.children.length > 0) {
-            for (const childKey of relationships.children) {
+        // Check for subtasks (works in all Jira versions)
+        try {
+            const subtasksResponse = await api.asUser().requestJira(
+                route`/rest/api/3/issue/${issueKey}?fields=subtasks`
+            );
+
+            const subtasksData = await subtasksResponse.json();
+            if (subtasksData.fields && subtasksData.fields.subtasks) {
+                console.log(`Found ${subtasksData.fields.subtasks.length} subtasks for ${issueKey}`);
+                for (const subtask of subtasksData.fields.subtasks) {
+                    if (!childKeys.has(subtask.key)) {
+                        childKeys.add(subtask.key);
+                        relationships.children.push(subtask.key);
+                        // If the subtask has fields data, add it directly
+                        if (subtask.fields && subtask.fields.summary) {
+                            relationships.childrenDetails.push({
+                                key: subtask.key,
+                                summary: subtask.fields.summary,
+                                issuetype: subtask.fields.issuetype ? subtask.fields.issuetype.name : 'Subtask'
+                            });
+                        } else {
+                            // Otherwise, we'll fetch details below
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error(`Error fetching subtasks for ${issueKey}:`, error);
+        }
+
+        // If it's an Epic, look for stories linked to this Epic
+        const isEpic = issueData.fields.issuetype &&
+                      issueData.fields.issuetype.name === 'Epic';
+
+        if (isEpic) {
+            try {
+                // Try standard Epic link
+                const epicChildrenResponse = await api.asUser().requestJira(
+                    route`/rest/api/3/search?jql=epic=${issueKey}&fields=summary,issuetype`
+                );
+
+                const epicChildrenData = await epicChildrenResponse.json();
+                if (epicChildrenData.issues && Array.isArray(epicChildrenData.issues)) {
+                    console.log(`Found ${epicChildrenData.issues.length} epic-linked issues for ${issueKey}`);
+                    for (const issue of epicChildrenData.issues) {
+                        if (!childKeys.has(issue.key)) {
+                            childKeys.add(issue.key);
+                            relationships.children.push(issue.key);
+                            relationships.childrenDetails.push({
+                                key: issue.key,
+                                summary: issue.fields && issue.fields.summary ? issue.fields.summary : '',
+                                issuetype: issue.fields && issue.fields.issuetype ? issue.fields.issuetype.name : ''
+                            });
+                        }
+                    }
+                }
+            } catch (epicError) {
+                console.error(`Error fetching Epic children for ${issueKey} using epic=:`, epicError);
+
+                // Try with the custom field approach as fallback
                 try {
-                    const childResponse = await api.asUser().requestJira(
-                        route`/rest/api/3/issue/${childKey}?fields=summary`
+                    const epicLinkResponse = await api.asUser().requestJira(
+                        route`/rest/api/3/search?jql=cf[10001]="${issueKey}"&fields=summary,issuetype`
                     );
-                    const childData = await childResponse.json();
 
-                    relationships.childrenDetails.push({
-                        key: childKey,
-                        summary: childData.fields && childData.fields.summary ? childData.fields.summary : ''
-                    });
-                } catch (childError) {
-                    console.error(`Error fetching details for issue ${childKey}:`, childError);
-                    // Add the key with an empty summary in case of error
-                    relationships.childrenDetails.push({
-                        key: childKey,
-                        summary: ''
-                    });
+                    const epicLinkData = await epicLinkResponse.json();
+                    if (epicLinkData.issues && Array.isArray(epicLinkData.issues)) {
+                        console.log(`Found ${epicLinkData.issues.length} epic-linked issues via custom field for ${issueKey}`);
+                        for (const issue of epicLinkData.issues) {
+                            if (!childKeys.has(issue.key)) {
+                                childKeys.add(issue.key);
+                                relationships.children.push(issue.key);
+                                relationships.childrenDetails.push({
+                                    key: issue.key,
+                                    summary: issue.fields && issue.fields.summary ? issue.fields.summary : '',
+                                    issuetype: issue.fields && issue.fields.issuetype ? issue.fields.issuetype.name : ''
+                                });
+                            }
+                        }
+                    }
+                } catch (cfError) {
+                    console.error(`Error fetching Epic children for ${issueKey} using custom field:`, cfError);
                 }
             }
         }
+
+        // Check for issue links that might represent parent-child relationships
+        try {
+            const linksResponse = await api.asUser().requestJira(
+                route`/rest/api/3/issue/${issueKey}?fields=issuelinks`
+            );
+
+            const linksData = await linksResponse.json();
+            if (linksData.fields && linksData.fields.issuelinks) {
+                let linkChildrenCount = 0;
+                for (const link of linksData.fields.issuelinks) {
+                    if (link.outwardIssue && link.type) {
+                        // Check for various child relationship types
+                        if (
+                            link.type.name === 'Parent/Child' ||
+                            link.type.name.toLowerCase().includes('subtask') ||
+                            link.type.outward === 'is parent of' ||
+                            link.type.outward === 'contains' ||
+                            link.type.outward === 'has'
+                        ) {
+                            const childKey = link.outwardIssue.key;
+                            if (!childKeys.has(childKey)) {
+                                childKeys.add(childKey);
+                                relationships.children.push(childKey);
+                                linkChildrenCount++;
+
+                                // If we have summary in the link data, use it
+                                if (link.outwardIssue.fields && link.outwardIssue.fields.summary) {
+                                    relationships.childrenDetails.push({
+                                        key: childKey,
+                                        summary: link.outwardIssue.fields.summary,
+                                        issuetype: link.outwardIssue.fields.issuetype ? link.outwardIssue.fields.issuetype.name : ''
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                console.log(`Found ${linkChildrenCount} linked child issues for ${issueKey}`);
+            }
+        } catch (error) {
+            console.error(`Error fetching issue links for ${issueKey}:`, error);
+        }
+
+        // Fetch details for each child issue that doesn't already have details
+        if (relationships.children.length > 0) {
+            const existingDetailKeys = new Set(relationships.childrenDetails.map(item => item.key));
+            const childrenNeedingDetails = relationships.children.filter(key => !existingDetailKeys.has(key));
+
+            if (childrenNeedingDetails.length > 0) {
+                console.log(`Fetching details for ${childrenNeedingDetails.length} child issues`);
+
+                for (const childKey of childrenNeedingDetails) {
+                    try {
+                        const childResponse = await api.asUser().requestJira(
+                            route`/rest/api/3/issue/${childKey}?fields=summary,issuetype`
+                        );
+                        const childData = await childResponse.json();
+
+                        relationships.childrenDetails.push({
+                            key: childKey,
+                            summary: childData.fields && childData.fields.summary ? childData.fields.summary : '',
+                            issuetype: childData.fields && childData.fields.issuetype ? childData.fields.issuetype.name : ''
+                        });
+                    } catch (childError) {
+                        console.error(`Error fetching details for issue ${childKey}:`, childError);
+                        // Add the key with an empty summary in case of error
+                        relationships.childrenDetails.push({
+                            key: childKey,
+                            summary: ''
+                        });
+                    }
+                }
+            }
+        }
+
+        console.log(`Total child issues found for ${issueKey}: ${relationships.children.length}`);
     } catch (error) {
         console.error('Error fetching issue relationships:', error);
     }
