@@ -1,5 +1,6 @@
 import Resolver from '@forge/resolver';
 import api, { route, fetch } from '@forge/api';
+import {apiToken} from "./token";
 
 const resolver = new Resolver();
 
@@ -310,7 +311,7 @@ Format your response with clear section headers "ANALYSIS:" and "MISSING_ISSUES_
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": "Bearer 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"
+                "Authorization": `Bearer ${apiToken}`
             },
             body: JSON.stringify({
                 model: "gpt-5-mini",

@@ -69,16 +69,16 @@ const MissingIssuesSuggestions = ({
               // description: `${issue.rationale}`,
               // Set parent issue if applicable
               ...(parentIssueKey && {parentIssueKey}),
+          },
+          onClose: ({ payload }) => {
+            if (payload[0] && payload[0].issueId) {
+              onIssueCreated(payload[0].issueId);
+            }
           }
       });
 
-      // Show the modal and wait for user to create the issue
-      const result = await modal.open();
+      await modal.open();
 
-      // If a new issue was created, notify the parent component
-      if (result && result.issueKey) {
-        onIssueCreated(result.issueKey);
-      }
     } catch (error) {
       console.error('Error creating issue:', error);
     }
