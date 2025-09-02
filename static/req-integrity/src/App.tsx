@@ -1,21 +1,40 @@
+import { useState } from 'react'
 import './App.css'
 import { useIssueData } from './hooks/useIssueData';
+import { analyzeIssueIntegrity } from './services/openai';
 
-interface ChildIssueDetail {
-  key: string;
-  summary: string;
-}
+// Utility function to extract plain text from Atlassian Document Format (ADF) object
+const extractTextFromADF = (description: any): string => {
+  if (!description) return '';
 
-interface IssueRelationships {
-  parent?: string;
-  children: string[];
-  childrenDetails: ChildIssueDetail[];
-  summary: string;
-  description: string;
-}
+  // If it's already a string, return it
+  if (typeof description === 'string') return description;
+
+  try {
+    // If it's an ADF object with content
+    if (description.content && Array.isArray(description.content)) {
+      return description.content.map(item => {
+        if (item.content && Array.isArray(item.content)) {
+          return item.content.map(textItem => textItem.text || '').join('');
+        }
+        return item.text || '';
+      }).join('\n');
+    }
+
+    // Fallback - convert to string representation
+    return JSON.stringify(description);
+  } catch (e) {
+    console.error('Error parsing description:', e);
+    return '';
+  }
+};
 
 function App() {
   const { data, isLoading, error } = useIssueData();
+  const [analysisResult, setAnalysisResult] = useState<string>('');
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+
   const issueId = data?.issueId;
   const issueKey = data?.issueKey;
   const relationships = data?.relationships || {
@@ -23,6 +42,33 @@ function App() {
     childrenDetails: [],
     summary: '',
     description: ''
+  };
+
+  // Extract plain text from the description
+  const descriptionText = extractTextFromADF(relationships.description);
+
+  const handleAnalyze = async () => {
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+    setAnalysisResult('');
+
+    try {
+      const result = await analyzeIssueIntegrity(
+        relationships.summary,
+        descriptionText, // Use the extracted plain text
+        relationships.childrenDetails
+      );
+
+      if (result.error) {
+        setAnalysisError(result.error);
+      } else {
+        setAnalysisResult(result.content);
+      }
+    } catch (err) {
+      setAnalysisError((err as Error).message || 'An error occurred during analysis');
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   return (
@@ -40,11 +86,11 @@ function App() {
             <h3>Summary</h3>
             <p className="issue-summary">{relationships.summary}</p>
 
-            {relationships.description && (
+            {descriptionText && (
               <div className="issue-description">
                 <h4>Description</h4>
                 <div className="description-text">
-                  {relationships.description}
+                  {descriptionText}
                 </div>
               </div>
             )}
@@ -71,6 +117,33 @@ function App() {
                 </ul>
               ) : null}
             </div>
+          </div>
+
+          <div className="analysis-section">
+            <button
+              className="analyze-button"
+              onClick={handleAnalyze}
+              disabled={isAnalyzing || !relationships.summary}
+            >
+              {isAnalyzing ? 'Analyzing...' : 'Analyse Requirements'}
+            </button>
+
+            {analysisError && (
+              <div className="error-message">
+                <p>Analysis Error: {analysisError}</p>
+              </div>
+            )}
+
+            {analysisResult && (
+              <div className="analysis-results">
+                <h3>Requirement Analysis</h3>
+                <div className="analysis-content">
+                  {analysisResult.split('\n').map((line, index) => (
+                    <p key={index}>{line}</p>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (
