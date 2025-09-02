@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 import { useIssueData } from './hooks/useIssueData';
-import { analyzeIssueIntegrity } from './services/openai';
+import { analyzeIssueIntegrity, MissingIssue } from './services/openai';
 import { extractTextFromADF } from './utils/textUtils';
 
 // Child issue component with expandable description
@@ -43,11 +43,33 @@ const ChildIssueItem = ({ issue }: { issue: { key: string; summary: string; issu
   );
 };
 
+// Missing Issues Suggestions component
+const MissingIssuesSuggestions = ({ missingIssues }: { missingIssues: MissingIssue[] }) => {
+  if (!missingIssues || missingIssues.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="missing-issues-container">
+      <h3>Suggested Missing Issues</h3>
+      <div className="missing-issues-list">
+        {missingIssues.map((issue, index) => (
+          <div key={index} className="missing-issue-item">
+            <div className="missing-issue-summary">{issue.proposedSummary}</div>
+            <div className="missing-issue-rationale">{issue.rationale}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 function App() {
   const { data, isLoading, error } = useIssueData();
   const [analysisResult, setAnalysisResult] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [missingIssues, setMissingIssues] = useState<MissingIssue[]>([]);
 
   const issueId = data?.issueId;
   const issueKey = data?.issueKey;
@@ -65,6 +87,7 @@ function App() {
     setIsAnalyzing(true);
     setAnalysisError(null);
     setAnalysisResult('');
+    setMissingIssues([]);
 
     try {
       const result = await analyzeIssueIntegrity(
@@ -77,6 +100,9 @@ function App() {
         setAnalysisError(result.error);
       } else {
         setAnalysisResult(result.content);
+        if (result.missingIssues && result.missingIssues.length > 0) {
+          setMissingIssues(result.missingIssues);
+        }
       }
     } catch (err) {
       setAnalysisError((err as Error).message || 'An error occurred during analysis');
@@ -163,6 +189,9 @@ function App() {
                     <p key={index}>{line}</p>
                   ))}
                 </div>
+
+                {/* Display missing issues suggestions */}
+                {missingIssues.length > 0 && <MissingIssuesSuggestions missingIssues={missingIssues} />}
               </div>
             )}
           </div>

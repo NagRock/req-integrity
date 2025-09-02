@@ -253,6 +253,40 @@ h4 {
   color: #333;
 }
 
+/* Missing issues suggestions styles */
+.missing-issues-container {
+  margin-top: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+  padding-top: 1.5rem;
+}
+
+.missing-issues-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.missing-issue-item {
+  background-color: #f0f8ff;
+  border-radius: 6px;
+  padding: 1rem;
+  border-left: 4px solid #2196f3;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.missing-issue-summary {
+  font-weight: bold;
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
+  font-size: 1.05rem;
+}
+
+.missing-issue-rationale {
+  color: #5d6975;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
 /* Keep some of the existing styles for compatibility */
 .read-the-docs {
   color: #888;

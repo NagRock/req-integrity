@@ -272,7 +272,9 @@ Description: ${mainDescription || '(No description provided)'}
 And these are the child issues:
 ${childIssuesText}
 
-Your task is to ONLY analyze if there is sufficient alignment between what's specified in the main task and what's covered by the child tasks. Do NOT suggest what should ideally be in either the main task or child tasks.
+Your task is to provide TWO separate outputs:
+
+1. ANALYSIS: Analyze if there is sufficient alignment between what's specified in the main task and what's covered by the child tasks.
 
 If the main task has a vague summary or minimal/missing description:
 - Point out that proper analysis cannot be done without clear requirements
@@ -284,7 +286,22 @@ If the main task has clear information:
 - Do NOT suggest additional requirements that aren't explicitly mentioned in the main task
 - Focus strictly on what's out of sync between the provided information
 
-Be very specific and stick strictly to what's mentioned in the main task versus what's covered in child tasks. Don't make assumptions about what "should" be included beyond what's explicitly stated.
+2. MISSING_ISSUES_JSON: Based on the analysis above, provide a JSON object containing an array of proposed child issues that might be missing. Include a meaningful summary for each proposed issue that aligns with the main task's requirements. The JSON should follow this structure:
+\`\`\`json
+{
+  "missingIssues": [
+    {
+      "proposedSummary": "Implement feature X mentioned in main task",
+      "rationale": "Brief explanation of why this issue is needed based on main task"
+    },
+    ...
+  ]
+}
+\`\`\`
+
+If there are no missing issues or the main task doesn't have enough information, return an empty array for missingIssues.
+
+Format your response with clear section headers "ANALYSIS:" and "MISSING_ISSUES_JSON:" to separate these two outputs.
 `;
 
         console.log("Making API call to OpenAI responses endpoint");
@@ -293,7 +310,7 @@ Be very specific and stick strictly to what's mentioned in the main task versus 
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": "Bearer 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"
+                "Authorization": "Bearer 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"
             },
             body: JSON.stringify({
                 model: "gpt-5-mini",
@@ -313,31 +330,58 @@ Be very specific and stick strictly to what's mentioned in the main task versus 
 
         // Parse the response correctly based on the structure returned by the OpenAI API
         let analysisText = 'No analysis was generated.';
+        let missingIssuesJson = { missingIssues: [] };
 
         if (data && data.output && Array.isArray(data.output)) {
-            // Try to find the content array in the output array
-            for (const item of data.output) {
-                if (item && item.content && Array.isArray(item.content)) {
-                    // Extract text from content array
-                    const textContents = item.content
+            // Extract the full text response first
+            const fullResponseText = data.output
+                .filter(item => item && item.content && Array.isArray(item.content))
+                .flatMap(item =>
+                    item.content
                         .filter(contentItem => contentItem && contentItem.text)
-                        .map(contentItem => contentItem.text);
+                        .map(contentItem => contentItem.text)
+                )
+                .join('\n');
 
-                    if (textContents.length > 0) {
-                        analysisText = textContents.join('\n');
-                        break;
+            // Split the response into analysis and JSON sections
+            const analysisMatch = fullResponseText.match(/ANALYSIS:([\s\S]*?)(?=MISSING_ISSUES_JSON:|$)/i);
+            const jsonMatch = fullResponseText.match(/MISSING_ISSUES_JSON:([\s\S]*?)(?:```json\s*([\s\S]*?)\s*```|([\s\S]*?)$)/i);
+
+            // Extract analysis part
+            if (analysisMatch && analysisMatch[1]) {
+                analysisText = analysisMatch[1].trim();
+            }
+
+            // Extract and parse JSON part
+            if (jsonMatch) {
+                try {
+                    // Try to find JSON in code block first
+                    const jsonContent = jsonMatch[2] || jsonMatch[3] || jsonMatch[1];
+                    // Clean up the JSON string - remove markdown formatting and find the actual JSON object
+                    const cleanJsonContent = jsonContent.trim();
+                    const jsonStartPos = cleanJsonContent.indexOf('{');
+                    const jsonEndPos = cleanJsonContent.lastIndexOf('}') + 1;
+
+                    if (jsonStartPos >= 0 && jsonEndPos > jsonStartPos) {
+                        const jsonStr = cleanJsonContent.substring(jsonStartPos, jsonEndPos);
+                        missingIssuesJson = JSON.parse(jsonStr);
                     }
+                } catch (jsonError) {
+                    console.error("Error parsing missing issues JSON:", jsonError);
+                    // Keep default empty array if parsing fails
                 }
             }
         }
 
         return {
-            content: analysisText
+            content: analysisText,
+            missingIssues: missingIssuesJson.missingIssues || []
         };
     } catch (error) {
         console.error('Error during OpenAI analysis:', error);
         return {
-            error: error.message || 'Unknown error occurred during analysis'
+            error: error.message || 'Unknown error occurred during analysis',
+            missingIssues: []
         };
     }
 });

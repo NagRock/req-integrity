@@ -1,8 +1,14 @@
 import { invoke } from '@forge/bridge';
 
+export interface MissingIssue {
+  proposedSummary: string;
+  rationale: string;
+}
+
 interface AnalysisResponse {
   content: string;
   error?: string;
+  missingIssues?: MissingIssue[];
 }
 
 /**
@@ -11,7 +17,7 @@ interface AnalysisResponse {
  * @param mainSummary - The summary of the main issue
  * @param mainDescription - The description of the main issue
  * @param childIssues - Array of child issue summaries
- * @returns The analysis response
+ * @returns The analysis response with analysis text and missing issues suggestions
  */
 export async function analyzeIssueIntegrity(
   mainSummary: string,
@@ -29,18 +35,21 @@ export async function analyzeIssueIntegrity(
     if (result.error) {
       return {
         content: '',
-        error: result.error
+        error: result.error,
+        missingIssues: []
       };
     }
 
     return {
-      content: result.content
+      content: result.content || '',
+      missingIssues: result.missingIssues || []
     };
   } catch (error) {
-    console.error('Error during requirement analysis:', error);
+    console.error('Error during analysis:', error);
     return {
       content: '',
-      error: error instanceof Error ? error.message : 'Unknown error occurred during analysis'
+      error: (error as Error).message || 'An unexpected error occurred',
+      missingIssues: []
     };
   }
 }
